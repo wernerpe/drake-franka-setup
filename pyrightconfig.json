@@ -1,0 +1,25 @@
+{
+    "exclude": [
+      "**/node_modules",
+      "**/__pycache__",
+      ".git",
+      "build",
+      "dist",
+      "*.egg-info",
+      ".pytest_cache",
+      ".mypy_cache",
+      ".tox",
+      "csdecomp/*"
+      "**/node_modules",
+      "**/__pycache__",
+      "**/.git",
+      "**/build",
+      "**/dist",
+      "**/*.egg-info",
+      "**/.pytest_cache",
+      "**/.mypy_cache",
+      "**/.tox",
+      "**/csdecomp",
+      "**/vamp",
+    ]
+  }

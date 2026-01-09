@@ -1,0 +1,13 @@
+[tool.poetry]
+name = "drake_franka_setup"
+version = "0.1.0"
+description = "Tools for controlling franka robots with drake"
+authors = ["Peter Werner <wernerpe@mit.edu>"]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.11"
+drake = "^1.47.0"
+pkginfo= "^1.10.0"
+ipywidgets = "8.1.2"
+jupyter = "^1.1.1"
+cspace_utils = {git = "git@github.com:wernerpe/cspace_utils.git", branch = "main"}
