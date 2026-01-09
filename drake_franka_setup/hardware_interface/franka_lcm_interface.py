@@ -11,15 +11,14 @@ from typing import List, Optional, Union, TYPE_CHECKING
 
 import pydrake.all as pd
 import pybezier as pb
-from franka_manipulation_station.planning.utils import (
+from drake_franka_setup.planning.utils import (
     composite_bezier_to_drake,
     add_stationary_start_and_end
 )
 from drake import lcmt_panda_command, lcmt_panda_status, lcmt_schunk_wsg_command, lcmt_schunk_wsg_status
 from manipulation.station import _WireDriverStatusReceiversToToPose
 
-from franka_manipulation_station.hardware_station import PandaStation
-from franka_manipulation_station.hardware_interface.franka_params import FRANKA_MAX_Q, FRANKA_MIN_Q
+from drake_franka_setup.hardware_interface.franka_params import FRANKA_MAX_Q, FRANKA_MIN_Q
 
 
 class FrankaStatusToState(pd.LeafSystem):
@@ -72,7 +71,6 @@ class FrankaLCMInterface:
 
     def __init__(self,
                  control_mode: str = "position",
-                 meshcat: Optional[pd.Meshcat] = None,
                  lcm_url: str = "",
                  enable_logging: bool = False,
                  control_gripper: bool = False):
@@ -81,13 +79,11 @@ class FrankaLCMInterface:
 
         Args:
             control_mode: "position", "position_velocity", or "torque"
-            meshcat: Optional Meshcat instance for visualization
             lcm_url: LCM URL (empty string uses default)
             enable_logging: If True, log commanded and actual positions/velocities
             control_gripper: If True, enable gripper control methods
         """
         self.control_mode = control_mode
-        self.meshcat = meshcat
         self.lcm_url = lcm_url
         self.enable_logging = enable_logging
         self.control_gripper = control_gripper
@@ -347,87 +343,6 @@ class FrankaLCMInterface:
                 self.velocity_status_logger.get_input_port()
             )
 
-        # Add visualization if meshcat is provided
-        if self.meshcat is not None:
-            raise NotImplementedError("this is currently unstable")
-            import os
-            print("Setting up Meshcat visualization...")
-
-            # Create scene graph for visualization
-            vis_scene_graph = builder.AddNamedSystem("vis_scenegraph", pd.SceneGraph())
-
-            # Create minimal plant with only arm and hand (frozen gripper)
-            time_step = 0
-            vis_plant: pd.MultibodyPlant = builder.AddNamedSystem("vis_plant", pd.MultibodyPlant(time_step))
-
-            # Register geometry with the plant
-            vis_plant.RegisterAsSourceForSceneGraph(vis_scene_graph)
-
-            # Add Panda arm and hand models using the same directives pattern
-            parser = pd.Parser(vis_plant)
-            assets_path = os.path.dirname(__file__)+"/../../assets"
-            parser.package_map().Add("assets", assets_path)
-            parser.package_map().Add("franka_description", assets_path+'/franka_description')
-            parser.package_map().Add("tri_finray_gripper", assets_path+"/tri_finray_gripper")
-            # Load the Panda arm - using the assets package like in the directives
-            panda_arm = parser.AddModelsFromUrl(
-                "package://assets/franka_description/urdf/panda_arm.urdf"
-            )[0]
-
-            # Weld arm to world
-            vis_plant.WeldFrames(
-                vis_plant.world_frame(),
-                vis_plant.GetFrameByName("panda_link0", panda_arm)
-            )
-
-            # Load the frozen Panda hand (gripper) - using the frozen model
-            panda_hand = parser.AddModelsFromUrl(
-                "package://assets/franka_description/urdf/hand_finray_frozen_open.urdf"
-            )[0]
-
-            # Create hand attachment frame with rotation (matching the directives)
-            X_PF = pd.RigidTransform(
-                R=pd.RotationMatrix.MakeZRotation(-np.pi/4),  # -45 degrees
-                p=[0, 0, 0]
-            )
-
-            # Weld the hand to panda_link8 with the attachment transform
-            arm_ee_frame = vis_plant.GetFrameByName("panda_link8", panda_arm)
-            hand_base_frame = vis_plant.GetFrameByName("panda_hand", panda_hand)
-            vis_plant.WeldFrames(arm_ee_frame, hand_base_frame, X_PF)
-            vis_plant.set_contact_model(pd.ContactModel.kPoint)
-
-            # Finalize the plant
-            vis_plant.Finalize()
-            builder.Connect(
-                vis_scene_graph.get_query_output_port(),
-                vis_plant.get_geometry_query_input_port()
-            )
-            # Verify we have 7 DOF (arm only, hand is welded/frozen)
-            assert vis_plant.num_positions() == 7, f"Expected 7 DOF, got {vis_plant.num_positions()}"
-
-            # Connect scene graph to plant for geometry queries
-            to_pose = builder.AddSystem(pd.MultibodyPositionToGeometryPose(vis_plant))
-            builder.Connect(
-                to_pose.get_output_port(),
-                vis_scene_graph.get_source_pose_port(vis_plant.get_source_id())
-            )
-
-            # Add Meshcat visualizer
-            meshcat_params = pd.MeshcatVisualizerParams()
-            meshcat_params.role = pd.Role.kIllustration
-            meshcat_params.prefix = "hardware_visualizer"  # Separate from planning visualization
-            meshcat_params.default_color = pd.Rgba(1.0, 0.9, 0.0, 0.5)
-
-            visualizer = pd.MeshcatVisualizer.AddToBuilder(
-                builder, vis_scene_graph, self.meshcat, meshcat_params
-            )
-
-            franka1_status_receiver: pd.PandaStatusReceiver = self.status_receiver
-            builder.Connect(
-                franka1_status_receiver.get_position_measured_output_port(),
-                to_pose.get_input_port()
-            )
 
         self.diagram = builder.Build()
 
