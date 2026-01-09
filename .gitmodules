@@ -1,0 +1,6 @@
+[submodule "deps/drake_franka_driver"]
+	path = deps/drake_franka_driver
+	url = https://github.com/wernerpe/drake-franka-driver.git
+[submodule "deps/franka_analytical_ik"]
+	path = deps/franka_analytical_ik
+	url = https://github.com/wernerpe/franka_analytical_ik.git
